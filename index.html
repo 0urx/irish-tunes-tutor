@@ -5358,7 +5358,10 @@
       return '4/4';
     }
 
-    /* Recherche directe sur thesession.org. */
+    /* Recherche directe sur thesession.org. Si l'API refuse la
+     * connexion (403, CORS, coupure), l'export officiel complet
+     * répond à sa place : les résultats sont identiques et le
+     * fonctionnement reste transparent pour l'utilisateur. */
     function apiSearchTunes(query) {
       var url = SESSION_API + '/tunes/search?q=' + encodeURIComponent(query) + '&format=json';
       return fetch(url).then(function (res) {
@@ -5372,6 +5375,15 @@
             source: 'thesession.org (direct)', api: true, settings: null
           };
         });
+      }).catch(function (err) {
+        /* Repli : l'API directe est indisponible, on interroge
+         * l'export officiel (téléchargé une fois puis réutilisé). */
+        return loadSessionDb().then(function () {
+          return sessionSearch(query).map(function (t) {
+            t.source = 'thesession.org (export officiel)';
+            return t;
+          });
+        }).catch(function () { throw err; });
       });
     }
 
@@ -5397,6 +5409,30 @@
           });
           t.settingsLoaded = true;
           return t;
+        }).catch(function (err) {
+          /* Repli : l'API directe est indisponible (403, CORS,
+           * coupure). Toutes les versions du tune sont extraites
+           * de l'export officiel, qui recense chaque réglage. */
+          return loadSessionDb().then(function (db) {
+            var recs = db.filter(function (r) {
+              return String(r.tune_id) === String(t.tuneId);
+            });
+            if (!recs.length) throw err;
+            recs.sort(function (a, b) {
+              return Number(a.setting_id) - Number(b.setting_id);
+            });
+            t.name = recs[0].name || t.name;
+            t.settings = recs.map(function (s, i) {
+              return {
+                abc: 'X:' + (i + 1) + '\nT:' + (s.name || t.name) + '\nR:' + (s.type || '') +
+                  '\nM:' + (s.meter || apiMeterOf(s.type)) + '\nL:1/8\nK:' + (s.mode || 'D') +
+                  '\n' + String(s.abc || '').replace(/\r/g, ''),
+                key: (s.mode || '').replace(/(maj|min|orian|dian|olian|yrian|ocrian)$/, '')
+              };
+            });
+            t.settingsLoaded = true;
+            return t;
+          }).catch(function () { throw err; });
         });
     }
 
