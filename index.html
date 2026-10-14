@@ -7035,6 +7035,8 @@
        * retirés du suivi ne seront plus modifiés par un arrêt
        * ultérieur, même si leur extinction est en vol. */
       playGen++;
+      noteQueue = [];          /* les notes non encore jouées ne devront jamais sonner */
+      if (notePumpId) { clearInterval(notePumpId); notePumpId = null; }
       var dying = activeNodes;
       activeNodes = [];
       var now = audioCtx ? audioCtx.currentTime : 0;
@@ -7091,39 +7093,47 @@
       return keyMap[ev.letter] || 0;
     }
 
-    /* Joue une séquence d'événements (notes et silences) d'une ligne.
-     * Surligne chaque note sur la partition au moment exact de son jeu. */
-    function playSequence(events, keyMap, startSec, eighthSec, lineIdx, noteOffset) {
-      var ctx = ensureAudio();
-      var t = startSec;
-      var lineStarted = false;
-      var noteOrder = noteOffset || 0;
-      events.forEach(function (ev) {
-        if (ev.kind === 'bar') return;
-        var dur = ev.eighths * eighthSec;
-        /* Sécurité anti-plantage : une durée aberrante (NaN ou
-         * négative, notation exotique) est remplacée par une
-         * croche ; une fréquence invalide ignore la note. Sans
-         * ces gardes, un NaN se propageait aux rampes de gain et
-         * de filtre et interrompait la lecture en erreur. */
-        if (!isFinite(dur) || dur <= 0) dur = eighthSec;
-        if (ev.kind === 'note') {
-          if (!lineStarted && lineIdx !== undefined) {
-            lineStarted = true;
-            activeTimers.push(setTimeout(function () {
-              if (playbackLineCb) playbackLineCb(lineIdx);
-            }, Math.max(0, (t - ctx.currentTime) * 1000)));
-          }
-          var acc = effectiveAcc(ev, keyMap);
-          var freq = noteFreq(ev.letter, ev.octave, acc);
-          if (!freq) { t += dur; return; }
+    /* File d'échéances de notes et ordonnanceur à horizon glissant :
+     * les notes ne deviennent des oscillateurs que dans les
+     * 500 ms précédant leur jeu. Le moteur audio ne porte ainsi
+     * jamais plus de quelques notes à la fois, quoi que fasse
+     * l'utilisateur (lecture longue, boucle, changements de tempo
+     * répétés) — chaque replanification créait auparavant des
+     * centaines d'oscillateurs d'un coup : grésillements, puis
+     * perte totale du son. */
+    var noteQueue = [];
+    var notePumpId = null;
+    function pumpNoteQueue() {
+      if (!audioCtx) return;
+      var horizon = audioCtx.currentTime + 0.5;
+      var keep = [];
+      for (var i = 0; i < noteQueue.length; i++) {
+        var nt = noteQueue[i];
+        if (nt.t <= horizon) {
+          try { synthNote(audioCtx, nt.freq, nt.dur, nt.t, nt.gen); }
+          catch (e) { /* note perdue : la lecture poursuit */ }
+        } else {
+          keep.push(nt);
+        }
+      }
+      noteQueue = keep;
+      if (!noteQueue.length && notePumpId) {
+        clearInterval(notePumpId);
+        notePumpId = null;
+      }
+    }
+    function startNotePump() {
+      pumpNoteQueue();
+      if (notePumpId) return;
+      notePumpId = setInterval(pumpNoteQueue, 100);
+    }
 
-          /* Timbre selon la préférence « Son de lecture » :
-           * violon, tin whistle, piano ou guitare. Tous partagent
-           * la même enveloppe anti-clic : attaque progressive,
-           * aucun raccord brutal, vibrato fondu à zéro avant la
-           * fin de la note, oscillateurs arrêtés après
-           * l'extinction complète du son. */
+    /* Fabrique et démarre le son d'UNE note, au moment où elle
+     * arrive à l'horizon de l'ordonnanceur (voir pumpNoteQueue).
+     * Seul ce travail touche au fil audio : les notes sont
+     * matérialisées au plus près de leur instant de jeu, jamais
+     * des dizaines de secondes à l'avance. */
+    function synthNote(ctx, freq, dur, t, noteGen) {
           var snd = getOptions().sound || 'piano';
           var osc = ctx.createOscillator();
           var osc2 = ctx.createOscillator();
@@ -7223,7 +7233,6 @@
             }
           }
           gain.connect(audioMaster || ctx.destination);
-          var noteGen = playGen;
 
           /* Enveloppe commune anti-clic : montée exponentielle,
            * tenue décroissante jusqu'à la fin de la note, queue
@@ -7271,6 +7280,53 @@
           activeNodes.push({ osc: osc, gain: gain, gen: noteGen });
           activeNodes.push({ osc: osc2, gain: g2, gen: noteGen });
           activeNodes.push({ osc: lfo, gain: lfoGain, gen: noteGen });
+    }
+
+    /* Joue une séquence d'événements (notes et silences) d'une ligne.
+     * Surligne chaque note sur la partition au moment exact de son jeu. */
+    function playSequence(events, keyMap, startSec, eighthSec, lineIdx, noteOffset) {
+      var ctx = ensureAudio();
+      var t = startSec;
+      var lineStarted = false;
+      var noteOrder = noteOffset || 0;
+      events.forEach(function (ev) {
+        if (ev.kind === 'bar') return;
+        var dur = ev.eighths * eighthSec;
+        /* Sécurité anti-plantage : une durée aberrante (NaN ou
+         * négative, notation exotique) est remplacée par une
+         * croche ; une fréquence invalide ignore la note. Sans
+         * ces gardes, un NaN se propageait aux rampes de gain et
+         * de filtre et interrompait la lecture en erreur. */
+        if (!isFinite(dur) || dur <= 0) dur = eighthSec;
+        if (ev.kind === 'note') {
+          if (!lineStarted && lineIdx !== undefined) {
+            lineStarted = true;
+            activeTimers.push(setTimeout(function () {
+              if (playbackLineCb) playbackLineCb(lineIdx);
+            }, Math.max(0, (t - ctx.currentTime) * 1000)));
+          }
+          var acc = effectiveAcc(ev, keyMap);
+          var freq = noteFreq(ev.letter, ev.octave, acc);
+          if (!freq) { t += dur; return; }
+          var noteGen = playGen;
+
+          /* Timbre selon la préférence « Son de lecture » :
+           * violon, tin whistle, piano ou guitare. Tous partagent
+           * la même enveloppe anti-clic : attaque progressive,
+           * aucun raccord brutal, vibrato fondu à zéro avant la
+           * fin de la note, oscillateurs arrêtés après
+           * l'extinction complète du son. */
+          /* La note n'est PAS encore créée : seule son échéance
+           * est mise en file. L'ordonnanceur (pumpNoteQueue) la
+           * matérialise un peu avant son instant de jeu — la
+           * lecture d'un tune entier ne garde donc jamais plus de
+           * quelques notes vivantes côté moteur audio, et un
+           * changement de tempo ne détruit pas des centaines
+           * d'oscillateurs pour en recréer autant. */
+          noteQueue.push({
+            t: t, freq: freq, dur: dur, gen: noteGen,
+            id: NOTE_ID_MAP[lineIdx + '_' + noteOrder]
+          });
 
           /* Surlignage de la note jouée (tête + hampe), synchronisé. */
           (function (id, tOn, durOn) {
@@ -7294,6 +7350,7 @@
         }
         t += dur;
       });
+      if (noteQueue.length) startNotePump();
       return { endTime: t, noteCount: noteOrder };
     }
 
