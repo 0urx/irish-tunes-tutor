@@ -7128,6 +7128,20 @@
       notePumpId = setInterval(pumpNoteQueue, 100);
     }
 
+    /* Bruit blanc partagé (0,5 s) pour l'attaque « crin » du
+     * violon : généré une seule fois par contexte audio, jamais
+     * note par note. */
+    var VIOLIN_NOISE = null;
+    function violinNoiseBuffer(ctx) {
+      if (VIOLIN_NOISE && VIOLIN_NOISE.sampleRate === ctx.sampleRate) return VIOLIN_NOISE;
+      var len = Math.floor(ctx.sampleRate * 0.5);
+      var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      var d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      VIOLIN_NOISE = buf;
+      return buf;
+    }
+
     /* Fabrique et démarre le son d'UNE note, au moment où elle
      * arrive à l'horizon de l'ordonnanceur (voir pumpNoteQueue).
      * Seul ce travail touche au fil audio : les notes sont
@@ -7200,36 +7214,79 @@
             rel = Math.min(0.30, Math.max(0.10, dur * 0.7));
             peak = 0.26; sustain = 0.05;
           } else {
-            /* Violon (défaut) : nappe de trois dents de scie très
-             * légèrement désaccordées (l'archet sur la corde
-             * produit un son riche et légèrement instable),
-             * fondamentale renforcée par une sinusoïde (corps
-             * en bois), octave adoucie pour le brillant,
-             * attaque franche de coup d'archet, vibrato ample
-             * et présent, filtre qui s'ouvre avec l'archet. */
-            osc.type = 'sawtooth'; osc.frequency.value = freq * 0.999;
-            osc2.type = 'sawtooth'; osc2.frequency.value = freq * 1.006;
-            g1.gain.value = 0.38; g2.gain.value = 0.38;
+            /* Violon (défaut) — synthèse « archet » soignée.
+             * Le son de corde frottée naît de la friction du crin :
+             * deux dents de scie très légèrement désaccordées
+             * (battement du crin sur la corde), la fondamentale en
+             * sinusoïde pour la rondeur, une octave discrète pour
+             * le corps en bois et un filet de dent de scie
+             * désaccordée pour le halo. Le mélange traverse un
+             * passe-bas qui s'ouvre avec la pression d'archet,
+             * puis trois résonances fixes de caisse — les modes
+             * du bois du violon (~285 Hz, ~700 Hz et le « bridge »
+             * vers 2,5 kHz) — lui donnent sa couleur d'instrument.
+             * Une bouffée de bruit filtré au démarrage figure le
+             * crin qui accroche la corde. Le vibrato, retardé
+             * comme un vrai geste de main gauche, s'installe un
+             * peu après le pose d'archet (voir plus bas). */
+            attack = Math.min(0.085, Math.max(0.02, dur * 0.3));
+            rel = Math.min(0.25, Math.max(0.08, dur * 0.8));
+            peak = 0.2; sustain = 0.155;
+            osc.type = 'sawtooth'; osc.frequency.value = freq * 0.9985;
+            osc2.type = 'sawtooth'; osc2.frequency.value = freq * 1.0035;
+            g1.gain.value = 0.30; g2.gain.value = 0.30;
             osc3 = ctx.createOscillator();
             osc3.type = 'sine'; osc3.frequency.value = freq * 2.002;
-            g3 = ctx.createGain(); g3.gain.value = 0.16;
+            g3 = ctx.createGain(); g3.gain.value = 0.07;
             var osc4 = ctx.createOscillator();
             osc4.type = 'sine'; osc4.frequency.value = freq;
-            var g4 = ctx.createGain(); g4.gain.value = 0.22;
+            var g4 = ctx.createGain(); g4.gain.value = 0.18;
             var osc5 = ctx.createOscillator();
-            osc5.type = 'sawtooth'; osc5.frequency.value = freq * 1.013;
-            var g5 = ctx.createGain(); g5.gain.value = 0.14;
+            osc5.type = 'sawtooth'; osc5.frequency.value = freq * 1.011;
+            var g5 = ctx.createGain(); g5.gain.value = 0.05;
             osc.connect(g1); osc2.connect(g2); osc3.connect(g3);
             osc4.connect(g4); osc5.connect(g5);
-            if (lp) { g1.connect(lp); g2.connect(lp); g3.connect(lp); g4.connect(lp); g5.connect(lp); lp.connect(gain); }
-            else { g1.connect(gain); g2.connect(gain); g3.connect(gain); g4.connect(gain); g5.connect(gain); }
-            attack = Math.min(0.045, Math.max(0.014, dur * 0.28));
-            rel = Math.min(0.18, Math.max(0.05, dur * 0.55));
-            peak = 0.24; sustain = 0.19;
-            if (lp) {
-              var cut = Math.max(1000, Math.min(4200, freq * 5.5));
-              lp.frequency.setValueAtTime(Math.max(520, cut * 0.45), t);
-              lp.frequency.exponentialRampToValueAtTime(cut, t + attack);
+            var bowBus = ctx.createGain(); bowBus.gain.value = 1;
+            g1.connect(bowBus); g2.connect(bowBus); g3.connect(bowBus);
+            g4.connect(bowBus); g5.connect(bowBus);
+            var bodyIn = bowBus;
+            if (ctx.createBiquadFilter) {
+              var bowLp = ctx.createBiquadFilter();
+              bowLp.type = 'lowpass'; bowLp.Q.value = 0.8;
+              var cut = Math.max(1400, Math.min(5200, freq * 6.5));
+              bowLp.frequency.setValueAtTime(Math.max(600, cut * 0.5), t);
+              bowLp.frequency.exponentialRampToValueAtTime(cut, t + Math.max(0.07, attack));
+              bowBus.connect(bowLp);
+              bodyIn = bowLp;
+            }
+            /* Son direct + résonances de caisse (modes du bois). */
+            var bodyMix = ctx.createGain(); bodyMix.gain.value = 0.7;
+            bodyIn.connect(bodyMix); bodyMix.connect(gain);
+            if (ctx.createBiquadFilter) {
+              var modes = [[285, 2.1, 0.4], [700, 2.6, 0.25], [2450, 1.6, 0.14]];
+              for (var bi = 0; bi < modes.length; bi++) {
+                var bp = ctx.createBiquadFilter();
+                bp.type = 'bandpass'; bp.frequency.value = modes[bi][0];
+                bp.Q.value = modes[bi][1];
+                var bg = ctx.createGain(); bg.gain.value = modes[bi][2];
+                bodyIn.connect(bp); bp.connect(bg); bg.connect(gain);
+              }
+              /* Crin : bouffée de bruit filtré à l'attaque, très
+               * brève et discrète — l'accroche de l'archet. */
+              try {
+                var noise = ctx.createBufferSource();
+                noise.buffer = violinNoiseBuffer(ctx);
+                var nbp = ctx.createBiquadFilter();
+                nbp.type = 'bandpass';
+                nbp.frequency.value = Math.max(1800, Math.min(4200, freq * 7));
+                nbp.Q.value = 0.6;
+                var ng = ctx.createGain();
+                ng.gain.setValueAtTime(0.035, t);
+                ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+                noise.connect(nbp); nbp.connect(ng); ng.connect(gain);
+                noise.start(t); noise.stop(t + 0.4);
+                activeNodes.push({ osc: noise, gain: ng, gen: noteGen });
+              } catch (e) { /* bruit indisponible : note sans crin */ }
             }
           }
           gain.connect(audioMaster || ctx.destination);
@@ -7254,13 +7311,26 @@
            * à zéro avant la fin de la note (anti-claquement). */
           var lfo = ctx.createOscillator();
           lfo.type = 'sine';
-          lfo.frequency.value = (snd === 'violon') ? 6.3 : 5.0;
+          /* Légère variation de vitesse de vibrato d'une note à
+           * l'autre : aucun violoniste ne vibre à cadence
+           * métronomique. */
+          lfo.frequency.value = (snd === 'violon') ? (5.6 + Math.random() * 1.1) : 5.0;
           var lfoGain = ctx.createGain();
           lfoGain.gain.setValueAtTime(0, t);
           if (dur > 0.18 && (snd === 'violon' || snd === 'tinwhistle')) {
-            var depth = (snd === 'violon') ? freq * 0.011 : freq * 0.002;
-            lfoGain.gain.linearRampToValueAtTime(depth, t + attack + 0.06);
-            lfoGain.gain.linearRampToValueAtTime(0, t + dur);
+            var depth = (snd === 'violon') ? freq * 0.008 : freq * 0.002;
+            if (snd === 'violon') {
+              /* Geste de la main gauche : le vibrato ne démarre
+               * pas en même temps que la note — il s'installe
+               * après le pose d'archet, puis s'efface avant la
+               * fin (anti-claquement). */
+              var vibOn = t + Math.min(0.14, dur * 0.35);
+              lfoGain.gain.linearRampToValueAtTime(depth, vibOn + 0.16);
+              lfoGain.gain.linearRampToValueAtTime(0, Math.max(vibOn + 0.2, t + dur));
+            } else {
+              lfoGain.gain.linearRampToValueAtTime(depth, t + attack + 0.06);
+              lfoGain.gain.linearRampToValueAtTime(0, t + dur);
+            }
           }
           lfo.connect(lfoGain);
           lfoGain.connect(osc.frequency);
