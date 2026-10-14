@@ -7018,9 +7018,9 @@
       try {
         g.cancelScheduledValues(now);
         g.setValueAtTime(Math.max(0.05, g.value), now);
-        g.linearRampToValueAtTime(0.25, now + 0.06);
-        g.setValueAtTime(0.25, now + 0.2);
-        g.linearRampToValueAtTime(0.9, now + 0.45);
+        g.linearRampToValueAtTime(0.4, now + 0.05);
+        g.setValueAtTime(0.4, now + 0.18);
+        g.linearRampToValueAtTime(0.9, now + 0.4);
       } catch (e) { /* contexte indisponible */ }
     }
 
@@ -7042,7 +7042,7 @@
         try {
           if (!audioCtx) return;
           var pg = pair.gen;
-          if (pg === undefined || pg >= playGen) {
+          if (pg === undefined || pg >= playGen - 1) {
             /* génération courante : fondu propre */
             pair.gain.gain.cancelScheduledValues(now);
             pair.gain.gain.setValueAtTime(Math.max(0.0001, pair.gain.gain.value), now);
