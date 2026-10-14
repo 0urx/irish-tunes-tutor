@@ -9013,62 +9013,60 @@
       });
 
       $('tempoInput').addEventListener('input', function () {
+        /* Le libellé suit le curseur en direct ; la replanification
+         * de la lecture n'a lieu qu'une seule fois, au relâchement
+         * du curseur (événement « change », aussi émis par les
+         * touches du clavier). Relancer toute la lecture toutes
+         * les 250 ms pendant le glissement superposait les queues
+         * de l'ancienne planification et la nouvelle, tout en
+         * pompant le volume maître : le moteur audio sature. */
         $('tempoNum').textContent = $('tempoInput').value;
-        /* Tempo modifié pendant une lecture : la lecture reprend au
-         * nouveau tempo. Le redémarrage est anti-rafalé (un seul
-         * toutes les 150 ms) : le glissement du curseur émet un
-         * événement par pixel, et replanifier tout le tune à
-         * chaque pixel sature le moteur audio et fait planter la
-         * lecture. Le libellé, lui, suit le curseur en direct. */
+      });
+
+      $('tempoInput').addEventListener('change', function () {
+        /* Tempo confirmé pendant une lecture : la lecture reprend
+         * au nouveau tempo, une seule fois, proprement. */
         if (!activeNodes.length || !bodyLines.length) return;
-        if (bpmRestartTimer) clearTimeout(bpmRestartTimer);
-        var tempoGen = playGen;
-        bpmRestartTimer = setTimeout(function () {
-          bpmRestartTimer = null;
-          /* La lecture a pu être arrêtée pendant le délai. */
-          if (!activeNodes.length) return;
-          if (tempoGen !== playGen) return; /* déjà replanifié entre-temps */
-          duckMaster();
-          var inStep = learnMode;
-          var inSet = !!setQueue;
-          /* Lecture d'une version « en place » (vue toutes les
-           * versions) : le redémarrage au nouveau tempo doit
-           * rejouer la même version — pas les lignes globales du
-           * tune, qui à cet instant ne correspondent à aucune
-           * partition affichée (elles datent du tune ou de la
-           * version précédente) et provoquaient un surlignage
-           * erroné sur d'autres versions. */
-          var pvIdx = playingVersionIdx;
-          var pvBtn = versionPlay ? versionPlay.btn : null;
-          var inVersion = !!versionPlay && pvIdx >= 0;
-          var loopOn = false;
-          var la = $('loopAll');
-          if (la) loopOn = !!la.checked;
-          /* playLines et playVersionInPlace appellent stopPlayback
-           * en tête : l'appeler ici aussi incrémenterait la
-           * génération deux fois par replanification. Seul le mode
-           * pas-à-pas (qui ne passe pas par playLines) doit être
-           * arrêté explicitement avant d'être relancé. */
-          if (inVersion) {
-            playVersionInPlace(pvIdx, pvBtn);
-            return;
-          }
-          if (inStep) {
-            stopPlayback();
-            playCurrentStep();
-            return;
-          }
-          /* Restaure le contexte complet de la lecture : surlignage
-           * des lignes, mode, boucle et enchaînement de set. */
-          playbackLineCb = highlightPlayingLine;
-          lastPlayMode = 'all';
-          var la2 = $('loopAllWrap');
-          if (la2) la2.style.display = '';
-          if (la) la.checked = loopOn;
-          playLines(bodyLines.map(function (_, i) { return i; }));
-          if (inSet) playbackEndCb = playSetNext;
-          $('playAll').textContent = T('Stop');
-        }, 250);
+        duckMaster();
+        var inStep = learnMode;
+        var inSet = !!setQueue;
+        /* Lecture d'une version « en place » (vue toutes les
+         * versions) : le redémarrage au nouveau tempo doit
+         * rejouer la même version — pas les lignes globales du
+         * tune, qui à cet instant ne correspondent à aucune
+         * partition affichée (elles datent du tune ou de la
+         * version précédente) et provoquaient un surlignage
+         * erroné sur d'autres versions. */
+        var pvIdx = playingVersionIdx;
+        var pvBtn = versionPlay ? versionPlay.btn : null;
+        var inVersion = !!versionPlay && pvIdx >= 0;
+        var loopOn = false;
+        var la = $('loopAll');
+        if (la) loopOn = !!la.checked;
+        /* playLines et playVersionInPlace appellent stopPlayback
+         * en tête : l'appeler ici aussi incrémenterait la
+         * génération deux fois par replanification. Seul le mode
+         * pas-à-pas (qui ne passe pas par playLines) doit être
+         * arrêté explicitement avant d'être relancé. */
+        if (inVersion) {
+          playVersionInPlace(pvIdx, pvBtn);
+          return;
+        }
+        if (inStep) {
+          stopPlayback();
+          playCurrentStep();
+          return;
+        }
+        /* Restaure le contexte complet de la lecture : surlignage
+         * des lignes, mode, boucle et enchaînement de set. */
+        playbackLineCb = highlightPlayingLine;
+        lastPlayMode = 'all';
+        var la2 = $('loopAllWrap');
+        if (la2) la2.style.display = '';
+        if (la) la.checked = loopOn;
+        playLines(bodyLines.map(function (_, i) { return i; }));
+        if (inSet) playbackEndCb = playSetNext;
+        $('playAll').textContent = T('Stop');
       });
 
       $('learnMode').addEventListener('click', function () {
@@ -9406,6 +9404,7 @@
            * curseur de tempo arrête puis relance la lecture au
            * nouveau tempo, en conservant boucle et surlignage. */
           $('tempoInput').dispatchEvent(new Event('input'));
+          $('tempoInput').dispatchEvent(new Event('change'));
         }
       });
       /* Préférence « Son de lecture » : timbre de la synthèse
