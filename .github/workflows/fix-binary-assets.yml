@@ -33,5 +33,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png banniere-1024x500.png
-          git commit -m "Icônes restaurées depuis assets-b64 (p40 : tin whistle + violon)" || echo "nothing to commit"
+          git commit -m "Icônes restaurées depuis assets-b64 (p6 : emblème nocturne)" || echo "nothing to commit"
           git push
