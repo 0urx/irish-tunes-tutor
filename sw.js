@@ -1,5 +1,5 @@
 /* Irish Tunes Tutor - service worker (empaquetage APK / PWA en ligne) */
-const CACHE = 'irish-tunes-tutor-v2';
+const CACHE = 'irish-tunes-tutor-v3';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
