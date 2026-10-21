@@ -33,5 +33,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png banniere-1024x500.png
-          git commit -m "Icones utilisateur via upload GitHub direct 21 oct (maskable derive)" || echo "nothing to commit"
+          git commit -m "Banniere 1024x500 assortie aux icones utilisateur (21 oct, 18h)" || echo "nothing to commit"
           git push
