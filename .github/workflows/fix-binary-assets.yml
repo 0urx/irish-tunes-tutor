@@ -145,11 +145,185 @@ jobs:
               print('b64', src, len(data))
 
           PYEOF
+      - name: Generate banner
+        run: |
+          #!/usr/bin/env python3
+          # Banniere 1024x500 - icone a droite, halo emeraude, cercles orange pale,
+          # typographie creme/vert lissee. Regeneration deterministe.
+          import zlib, struct, sys, math
+
+          def decode_png(path):
+              d = open(path, 'rb').read()
+              assert d[:8] == b'\x89PNG\r\n\x1a\n'
+              pos, w, h, idat, ctype = 8, 0, 0, b'', None
+              while pos < len(d):
+                  ln = struct.unpack('>I', d[pos:pos+4])[0]
+                  typ = d[pos+4:pos+8]
+                  data = d[pos+8:pos+8+ln]
+                  if typ == b'IHDR':
+                      w, h, bd, ctype = struct.unpack('>IIBB', data[:10])
+                  elif typ == b'IDAT':
+                      idat += data
+                  pos += 12 + ln
+              assert bd == 8 and ctype == 2, (bd, ctype)
+              raw = zlib.decompress(idat)
+              stride = w * 3
+              px = bytearray(w * h * 3)
+              prev = bytearray(stride)
+              p = 0
+              for y in range(h):
+                  f = raw[p]; p += 1
+                  line = bytearray(raw[p:p+stride]); p += stride
+                  if f == 1:
+                      for i in range(3, stride): line[i] = (line[i] + line[i-3]) & 255
+                  elif f == 2:
+                      for i in range(stride): line[i] = (line[i] + prev[i]) & 255
+                  elif f == 3:
+                      for i in range(stride):
+                          a = line[i-3] if i >= 3 else 0
+                          line[i] = (line[i] + ((a + prev[i]) >> 1)) & 255
+                  elif f == 4:
+                      for i in range(stride):
+                          a = line[i-3] if i >= 3 else 0
+                          b = prev[i]; c = prev[i-3] if i >= 3 else 0
+                          pp = a + b - c
+                          pa, pb, pc = abs(pp-a), abs(pp-b), abs(pp-c)
+                          pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                          line[i] = (line[i] + pr) & 255
+                  px[y*stride:(y+1)*stride] = line
+                  prev = line
+              return w, h, bytes(px)
+
+          def bilinear(src, sw, sh, x, y):
+              x = max(0.0, min(sw - 1.001, x)); y = max(0.0, min(sh - 1.001, y))
+              x0, y0 = int(x), int(y); dx, dy = x - x0, y - y0
+              i = (y0 * sw + x0) * 3
+              a = src[i:i+3]; b = src[i+3:i+6]; c = src[i+sw*3:i+sw*3+3]; dd = src[i+sw*3+3:i+sw*3+6]
+              return tuple(
+                  (a[k]*(1-dx)*(1-dy) + b[k]*dx*(1-dy) + c[k]*(1-dx)*dy + dd[k]*dx*dy)
+                  for k in range(3))
+
+          FONT = {
+          'I': [".###.","..#..","..#..","..#..","..#..","..#..",".###."],
+          'R': ["####.","#...#","#...#","####.","#.#..","#..#.","#...#"],
+          'S': [".####","#....","#....",".###.","....#","....#","####."],
+          'H': ["#...#","#...#","#...#","#####","#...#","#...#","#...#"],
+          'T': ["#####","..#..","..#..","..#..","..#..","..#..","..#.."],
+          'U': ["#...#","#...#","#...#","#...#","#...#","#...#",".###."],
+          'N': ["#...#","##..#","##..#","#.#.#","#..##","#..##","#...#"],
+          'E': ["#####","#....","#....","####.","#....","#....","#####"],
+          'O': [".###.","#...#","#...#","#...#","#...#","#...#",".###."],
+          }
+
+          def draw_text(buf, W, H, text, x, y, unit_px, color, ls_u=1.3):
+              k = 8
+              n = len(text)
+              mw = int((5*n + ls_u*(n-1)) * k) + 2
+              mh = 7 * k
+              mask = [0.0] * (mw * mh)
+              for c, ch in enumerate(text):
+                  x0 = int((5 + ls_u) * c * k)
+                  for r in range(7):
+                      row = FONT[ch][r]
+                      for cc in range(5):
+                          if row[cc] != '#':
+                              continue
+                          for yy in range(k):
+                              for xx in range(k):
+                                  mask[(r*k+yy)*mw + x0 + cc*k + xx] = 1.0
+              tw = int((5*n + ls_u*(n-1)) * unit_px)
+              th = int(7 * unit_px)
+              for oy in range(th):
+                  for ox in range(tw):
+                      fx = (ox + 0.5) * mw / tw
+                      fy = (oy + 0.5) * mh / th
+                      x0 = int(fx); y0 = int(fy)
+                      if 0 <= x0 < mw-1 and 0 <= y0 < mh-1:
+                          dx, dy = fx - x0, fy - y0
+                          i = y0*mw + x0
+                          a = (mask[i]*(1-dx)*(1-dy) + mask[i+1]*dx*(1-dy)
+                               + mask[i+mw]*(1-dx)*dy + mask[i+mw+1]*dx*dy)
+                          if a > 0.003:
+                              X, Y = x + ox, y + oy
+                              if 0 <= X < W and 0 <= Y < H:
+                                  j = (Y*W + X)*3
+                                  for q in range(3):
+                                      buf[j+q] = int(buf[j+q]*(1-a) + color[q]*a)
+
+          W, H = 1024, 500
+          buf = bytearray(W * H * 3)
+
+          CX, CY = 903, 118
+          LOGO_S, LOGO_X, LOGO_Y = 380, 612, 60
+
+          def put(x, y, rgb):
+              i = (y*W + x)*3
+              buf[i:i+3] = bytes(rgb)
+
+          for y in range(H):
+              for x in range(0, W):
+                  d2 = (x-CX)**2 + (y-CY)**2
+                  if d2 < 260**2:
+                      t = 1 - (d2 ** 0.5)/260
+                      g = int(26 * t*t)
+                      if g: buf[(y*W+x)*3+1] = g
+
+          ORANGE = (255, 179, 102)
+          for r in (170, 215, 262, 312, 364, 420, 480, 542):
+              alpha = 0.30 * (1 - (r-170)/400)
+              rr = r + 0.5
+              steps = int(2*3.1416*rr)
+              for s in range(steps):
+                  a = 2*math.pi*s/steps
+                  x = int(CX + rr*math.cos(a)); y = int(CY + rr*math.sin(a))
+                  if 0 <= x < W and 0 <= y < H:
+                      base = (y*W + x)*3
+                      for k in range(3):
+                          buf[base+k] = int(buf[base+k]*(1-alpha) + ORANGE[k]*alpha)
+                      x2 = int(CX + (rr-1.4)*math.cos(a)); y2 = int(CY + (rr-1.4)*math.sin(a))
+                      if 0 <= x2 < W and 0 <= y2 < H:
+                          b2 = (y2*W + x2)*3
+                          for k in range(3):
+                              buf[b2+k] = int(buf[b2+k]*(1-alpha) + ORANGE[k]*alpha)
+
+          iw, ih, ipx = decode_png('icons/icon-512.png')
+          sc = LOGO_S / iw
+          for y in range(LOGO_S):
+              for x in range(LOGO_S):
+                  r, g, b = bilinear(ipx, iw, ih, x/sc, y/sc)
+                  X, Y = LOGO_X + x, LOGO_Y + y
+                  if 0 <= X < W and 0 <= Y < H:
+                      i = (Y*W + X)*3
+                      buf[i] = int(r); buf[i+1] = int(g); buf[i+2] = int(b)
+
+          CREME, VERT = (240, 233, 220), (22, 155, 98)
+          draw_text(buf, W, H, "IRISH", 76, 108, 13, CREME, 1.4)
+          draw_text(buf, W, H, "TUNES", 76, 226, 13, CREME, 1.4)
+          for x in range(76, 76 + 5*13*5 + 4*8):
+              for t in range(3):
+                  put(x, 350+t, VERT); put(x, 356+t, VERT)
+          draw_text(buf, W, H, "TUTOR", 76, 376, 10, VERT, 1.3)
+
+          def chunk(t, data):
+              return struct.pack('>I', len(data)) + t + data + struct.pack('>I', zlib.crc32(t + data) & 0xffffffff)
+
+          strides = []
+          for y in range(H):
+              strides.append(b'\x00' + bytes(buf[y*W*3:(y+1)*W*3]))
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 2, 0, 0, 0)) \
+                + chunk(b'IDAT', zlib.compress(b''.join(strides), 9)) + chunk(b'IEND', b'')
+          open('banniere-1024x500.png', 'wb').write(png)
+          import hashlib
+          md5 = hashlib.md5(open('banniere-1024x500.png','rb').read()).hexdigest()
+          assert md5 == '79a8ecfaf1493f7ff96fe6fbe51aa136', 'banner md5 mismatch: ' + md5
+          print('banner written', md5)
+
+
       - name: Commit binary assets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
-          git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64
-          git commit -m "Icones fond noir + index reconstruit depuis l historique (26 oct, v4)" || echo "nothing to commit"
+          git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64 banniere-1024x500.png
+          git commit -m "Banniere raffinie + icones fond noir (26 oct, v5)" || echo "nothing to commit"
           git push
