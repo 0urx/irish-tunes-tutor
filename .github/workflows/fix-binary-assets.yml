@@ -120,17 +120,15 @@ jobs:
           PYEOF
           python3 - <<'PYEOF'
           import base64, pathlib
+          NL = chr(10)
           for src in ['icon-192.png','icon-512.png','icon-512-maskable.png']:
-            data = pathlib.Path('icons/'+src).read_bytes()
-            assert data[:8] == b'PNG
-
-', 'bad PNG: '+src
-            b64 = base64.b64encode(data).decode()
-            lines = [b64[i:i+76] for i in range(0, len(b64), 76)]
-            pathlib.Path('assets-b64/'+src+'.b64').write_text('
-'.join(lines) + '
-')
-            print('b64', src, len(data))
+              data = pathlib.Path('icons/'+src).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', 'bad PNG: '+src
+              b64 = base64.b64encode(data).decode()
+              lines = [b64[i:i+76] for i in range(0, len(b64), 76)]
+              pathlib.Path('assets-b64/'+src+'.b64').write_text(NL.join(lines) + NL)
+              print('b64', src, len(data))
+
           PYEOF
       - name: Commit binary assets
         run: |
@@ -138,5 +136,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64
-          git commit -m "Icones regenerees : fond noir pur, coins sans blanc (26 oct, v2)" || echo "nothing to commit"
+          git commit -m "Icones regenerees : fond noir pur, coins sans blanc (26 oct, v3)" || echo "nothing to commit"
           git push
