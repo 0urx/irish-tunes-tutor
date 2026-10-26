@@ -17,7 +17,7 @@ jobs:
         run: |
           git show 09721632d891d5aef14a54494d324d887aff03bf:icons/icon-512.png > orig-512.png
           git show 09721632d891d5aef14a54494d324d887aff03bf:index.html > index-orig.html
-          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v10/' > sw.js
+          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v11/' > sw.js
           python3 - <<'PYEOF'
           import zlib, struct, math
 
@@ -145,6 +145,34 @@ jobs:
               print('b64', src, len(data))
 
           PYEOF
+      - name: Patch index i18n (bouton Poursuivre et Terminer)
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib
+          p = pathlib.Path('index.html')
+          t = p.read_text(encoding='utf-8')
+          old = "btn.textContent = last ? 'Terminer' : 'Poursuivre';"
+          new = "btn.textContent = last ? T('Terminer') : T('Poursuivre →');"
+          assert t.count(old) == 1, 'bouton introuvable: %d' % t.count(old)
+          t = t.replace(old, new)
+          subs = [
+           ("'Poursuivre →': 'Continue →',", "'Poursuivre →': 'Continue →',\n        'Terminer': 'Finish',"),
+           ("'Poursuivre →': 'Weiter →',", "'Poursuivre →': 'Weiter →',\n        'Terminer': 'Abschließen',"),
+           ('"Poursuivre →": "Continua →",', '"Poursuivre →": "Continua →",\n        "Terminer": "Termina",'),
+           ('"Poursuivre →": "Continuar →",', '"Poursuivre →": "Continuar →",\n        "Terminer": "Terminar",'),
+           ('"Poursuivre →": "Doorgaan →",', '"Poursuivre →": "Doorgaan →",\n        "Terminer": "Afronden",'),
+           ('"Poursuivre →": "Fortsett →",', '"Poursuivre →": "Fortsett →",\n        "Terminer": "Fullfør",'),
+           ('"Poursuivre →": "Jatka →",', '"Poursuivre →": "Jatka →",\n        "Terminer": "Valmis",'),
+           ('"Poursuivre →": "Συνέχιση →",', '"Poursuivre →": "Συνέχιση →",\n        "Terminer": "Ολοκλήρωση",'),
+           ('"Poursuivre →": "Folytatás →",', '"Poursuivre →": "Folytatás →",\n        "Terminer": "Befejezés",'),
+          ]
+          for a, b in subs:
+              assert t.count(a) == 1, 'introuvable: ' + a[:30]
+              t = t.replace(a, b)
+          p.write_text(t, encoding='utf-8')
+          print('i18n poursuivre/terminer patched, octets:', len(t))
+
+          PYEOF
       - name: Generate banner
         run: |
           python3 - <<'PYEOF'
@@ -161,11 +189,11 @@ jobs:
                   ln = struct.unpack('>I', d[pos:pos+4])[0]
                   typ = d[pos+4:pos+8]
                   data = d[pos+8:pos+8+ln]
+                  pos += 12 + ln
                   if typ == b'IHDR':
                       w, h, bd, ctype = struct.unpack('>IIBB', data[:10])
                   elif typ == b'IDAT':
                       idat += data
-                  pos += 12 + ln
               assert bd == 8 and ctype == 2, (bd, ctype)
               raw = zlib.decompress(idat)
               stride = w * 3
@@ -319,8 +347,6 @@ jobs:
           assert md5 == '79a8ecfaf1493f7ff96fe6fbe51aa136', 'banner md5 mismatch: ' + md5
           print('banner written', md5)
 
-
-
           PYEOF
       - name: Commit binary assets
         run: |
@@ -328,5 +354,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64 banniere-1024x500.png
-          git commit -m "Banniere raffinie + icones fond noir (26 oct, v5)" || echo "nothing to commit"
+          git commit -m "Correctif i18n bouton Poursuivre/Terminer + sw v11 (26 oct, v6)" || echo "nothing to commit"
           git push
