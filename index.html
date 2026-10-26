@@ -1134,6 +1134,7 @@
         "Réinitialiser l'apprentissage": 'Reset learning',
         '← Étape précédente': '← Previous step',
         'Poursuivre →': 'Continue →',
+        'Terminer': 'Finish',
         'Boucle': 'Loop',
         'Lire le tune': 'Play the tune',
         'Lecture impossible (': 'Playback failed (',
@@ -1346,6 +1347,7 @@
         "Réinitialiser l'apprentissage": 'Lernen zurücksetzen',
         '← Étape précédente': '← Vorheriger Schritt',
         'Poursuivre →': 'Weiter →',
+        'Terminer': 'Abschließen',
         'Boucle': 'Schleife',
         'Lire le tune': 'Melodie spielen',
         'Lecture impossible (': 'Wiedergabe fehlgeschlagen (',
@@ -1558,6 +1560,7 @@
         "Réinitialiser l'apprentissage": "Reimposta l'apprendimento",
         "← Étape précédente": "← Fase precedente",
         "Poursuivre →": "Continua →",
+        "Terminer": "Termina",
         "Boucle": "Loop",
         "Lire le tune": "Suona la melodia",
         "Lecture impossible (": "Riproduzione non riuscita (",
@@ -1767,6 +1770,7 @@
         "Réinitialiser l'apprentissage": "Reiniciar el aprendizaje",
         "← Étape précédente": "← Paso anterior",
         "Poursuivre →": "Continuar →",
+        "Terminer": "Terminar",
         "Boucle": "Bucle",
         "Lire le tune": "Tocar la melodía",
         "Lecture impossible (": "Reproducción imposible (",
@@ -1976,6 +1980,7 @@
         "Réinitialiser l'apprentissage": "Leren opnieuw instellen",
         "← Étape précédente": "← Vorige stap",
         "Poursuivre →": "Doorgaan →",
+        "Terminer": "Afronden",
         "Boucle": "Lus",
         "Lire le tune": "Melodie afspelen",
         "Lecture impossible (": "Afspelen mislukt (",
@@ -2185,6 +2190,7 @@
         "Réinitialiser l'apprentissage": "Tilbakestill læringen",
         "← Étape précédente": "← Forrige steg",
         "Poursuivre →": "Fortsett →",
+        "Terminer": "Fullfør",
         "Boucle": "Løkke",
         "Lire le tune": "Spill melodien",
         "Lecture impossible (": "Avspilling mislyktes (",
@@ -2394,6 +2400,7 @@
         "Réinitialiser l'apprentissage": "Nollaa oppiminen",
         "← Étape précédente": "← Edellinen vaihe",
         "Poursuivre →": "Jatka →",
+        "Terminer": "Valmis",
         "Boucle": "Silmukka",
         "Lire le tune": "Soita melodia",
         "Lecture impossible (": "Toisto epäonnistui (",
@@ -2603,6 +2610,7 @@
         "Réinitialiser l'apprentissage": "Επαναφορά μάθησης",
         "← Étape précédente": "← Προηγούμενο βήμα",
         "Poursuivre →": "Συνέχιση →",
+        "Terminer": "Ολοκλήρωση",
         "Boucle": "Επανάληψη βρόχου",
         "Lire le tune": "Αναπαραγωγή μελωδίας",
         "Lecture impossible (": "Αποτυχία αναπαραγωγής (",
@@ -2811,6 +2819,7 @@
         "Réinitialiser l'apprentissage": "Tanulás visszaállítása",
         "← Étape précédente": "← Előző lépés",
         "Poursuivre →": "Folytatás →",
+        "Terminer": "Befejezés",
         "Boucle": "Hurok",
         "Lire le tune": "Melódia lejátszása",
         "Lecture impossible (": "A lejátszás nem sikerült (",
@@ -6589,7 +6598,7 @@
       $('stepLabel').textContent = T('Étape ' + (stepIdx + 1) + ' / ' + n + ' — ' + stepList[stepIdx].label);
       var last = stepIdx >= n - 1;
       btn.disabled = false;
-      btn.textContent = last ? 'Terminer' : 'Poursuivre';
+      btn.textContent = last ? T('Terminer') : T('Poursuivre →');
       $('prevStep').disabled = stepIdx <= 0;
     }
 
