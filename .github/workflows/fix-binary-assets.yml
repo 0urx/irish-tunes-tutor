@@ -147,6 +147,7 @@ jobs:
           PYEOF
       - name: Generate banner
         run: |
+          python3 - <<'PYEOF'
           #!/usr/bin/env python3
           # Banniere 1024x500 - icone a droite, halo emeraude, cercles orange pale,
           # typographie creme/vert lissee. Regeneration deterministe.
@@ -319,6 +320,8 @@ jobs:
           print('banner written', md5)
 
 
+
+          PYEOF
       - name: Commit binary assets
         run: |
           git config user.name "github-actions[bot]"
