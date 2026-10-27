@@ -181,9 +181,9 @@ jobs:
           # arret automatique des que le systeme est sur de lui, pourcentage de
           # precision calibre. Applique a index.html (celui reconstruit par le
           # workflow depuis l historique).
-          import sys, pathlib
+          import pathlib
 
-          p = pathlib.Path(sys.argv[1])
+          p = pathlib.Path('index.html')
           t = p.read_text(encoding='utf-8')
           orig_len = len(t)
 
