@@ -17,7 +17,7 @@ jobs:
         run: |
           git show 09721632d891d5aef14a54494d324d887aff03bf:icons/icon-512.png > orig-512.png
           git show 09721632d891d5aef14a54494d324d887aff03bf:index.html > index-orig.html
-          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v11/' > sw.js
+          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v12/' > sw.js
           python3 - <<'PYEOF'
           import zlib, struct, math
 
@@ -171,6 +171,359 @@ jobs:
               t = t.replace(a, b)
           p.write_text(t, encoding='utf-8')
           print('i18n poursuivre/terminer patched, octets:', len(t))
+
+          PYEOF
+      - name: Patch mic recognition (notes, arret auto, precision)
+        run: |
+          python3 - <<'PYEOF'
+          #!/usr/bin/env python3
+          # Patch de la reconnaissance audio : detection centree sur chaque note,
+          # arret automatique des que le systeme est sur de lui, pourcentage de
+          # precision calibre. Applique a index.html (celui reconstruit par le
+          # workflow depuis l historique).
+          import sys, pathlib
+
+          p = pathlib.Path(sys.argv[1])
+          t = p.read_text(encoding='utf-8')
+          orig_len = len(t)
+
+          def rep(old, new, n=1):
+              global t
+              assert t.count(old) == n, 'attendu %d, trouve %d: %r' % (n, t.count(old), old[:60])
+              t = t.replace(old, new)
+
+          def cut(start_anchor, end_anchor, new_text, include_end=True):
+              global t
+              s = t.index(start_anchor)
+              e = t.index(end_anchor, s)
+              if include_end:
+                  e += len(end_anchor)
+                  if t[e] == '\n':
+                      e += 1
+              t = t[:s] + new_text + t[e:]
+
+          # ---------------------------------------------------------------- i18n
+          i18n = [
+              ("'Terminer': 'Finish',", "'Terminer': 'Finish',", "'", [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " note(s) detected. Live automatic search…"),
+                  ("Meilleur candidat : ", "Best candidate: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automatic recognition: tune identified with sufficient confidence."),
+              ]),
+              ("'Terminer': 'Abschließen',", "'Terminer': 'Abschließen',", "'", [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " Note(n) erkannt. Automatische Live-Suche…"),
+                  ("Meilleur candidat : ", "Bester Kandidat: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automatische Erkennung: Melodie mit ausreichender Sicherheit identifiziert."),
+              ]),
+              ('"Terminer": "Termina",', '"Terminer": "Termina",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " nota/e percepite. Ricerca automatica in tempo reale…"),
+                  ("Meilleur candidat : ", "Miglior candidato: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Riconoscimento automatico: melodia identificata con sufficiente affidabilità."),
+              ]),
+              ('"Terminer": "Terminar",', '"Terminer": "Terminar",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " nota(s) percibidas. Búsqueda automática en directo…"),
+                  ("Meilleur candidat : ", "Mejor candidato: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Reconocimiento automático: melodía identificada con confianza suficiente."),
+              ]),
+              ('"Terminer": "Afronden",', '"Terminer": "Afronden",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " noot/noten waargenomen. Automatische live zoektocht…"),
+                  ("Meilleur candidat : ", "Beste kandidaat: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automatische herkenning: melodie met voldoende zekerheid geïdentificeerd."),
+              ]),
+              ('"Terminer": "Fullfør",', '"Terminer": "Fullfør",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " tone(r) oppfattet. Automatisk direkte søk…"),
+                  ("Meilleur candidat : ", "Beste kandidat: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automatisk gjenkjenning: melodi identifisert med tilstrekkelig sikkerhet."),
+              ]),
+              ('"Terminer": "Valmis",', '"Terminer": "Valmis",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " havaittua nuottia. Automaattinen haku käynnissä…"),
+                  ("Meilleur candidat : ", "Paras ehdokas: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automaattinen tunnistus: melodia tunnistettu riittävän varmasti."),
+              ]),
+              ('"Terminer": "Ολοκλήρωση",', '"Terminer": "Ολοκλήρωση",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " νότα/νότες. Αυτόματη αναζήτηση σε πραγματικό χρόνο…"),
+                  ("Meilleur candidat : ", "Καλύτερος υποψήφιος: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Αυτόματη αναγνώριση: η μελωδία αναγνωρίστηκε με επαρκή βεβαιότητα."),
+              ]),
+              ('"Terminer": "Befejezés",', '"Terminer": "Befejezés",', '"', [
+                  (" note(s) perçue(s). Recherche automatique en direct…", " észlelt hang. Automatikus élő keresés…"),
+                  ("Meilleur candidat : ", "Legjobb jelölt: "),
+                  ("Reconnaissance automatique : tune identifié avec une confiance suffisante.", "Automatikus felismerés: a dallam elegendő bizonyossággal azonosítva."),
+              ]),
+          ]
+          for anchor, line, q, entries in i18n:
+              assert t.count(anchor) == 1, anchor
+              add = line + '\n        '
+              add += ('\n        ').join(q + k + q + ': ' + q + v + q + ',' for k, v in entries)
+              t = t.replace(anchor, add)
+
+          # ---------------------------------------------------------------- micState
+          rep(
+              "    var micState = { stream: null, ctx: null, raf: 0, midis: [], hold: null, holdCount: 0, recent: [], cand: null, candCount: 0 };",
+              "    var micState = { stream: null, ctx: null, raf: 0, midis: [], hold: null, holdCount: 0, recent: [], cand: null, candCount: 0, notePitches: [], liveStreak: 0 };"
+          )
+          rep(
+              "        micState.midis = []; micState.hold = null; micState.holdCount = 0; micState.recent = []; micState.cand = null; micState.candCount = 0;",
+              "        micState.midis = []; micState.hold = null; micState.holdCount = 0; micState.recent = []; micState.cand = null; micState.candCount = 0;\n        micState.notePitches = []; micState.liveStreak = 0;"
+          )
+
+          # ---------------------------------------------------------------- autoCorrelate
+          cut('    function autoCorrelate(buf, sampleRate) {', '    var micState', '''    /* Détection de hauteur par autocorrélation (70 à 1000 Hz).
+               * Renvoie { f, q } : fréquence interpolée au dixième de frame
+               * près (parabole sur le pic choisi) et qualité de périodicité
+               * (corrélation normale du pic). q < 0,5 = frame non exploitable
+               * (bruit, attaque, souffle) : la note ne se fonde plus dessus. */
+              function autoCorrelate(buf, sampleRate) {
+                var SIZE = buf.length, rms = 0, i;
+                for (i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+                rms = Math.sqrt(rms / SIZE);
+                if (rms < 0.006) return null;
+                var MIN_P = Math.floor(sampleRate / 1000);
+                var MAX_P = Math.floor(sampleRate / 70);
+                var r = new Float32Array(MAX_P + 1);
+                for (var T = MIN_P; T <= MAX_P; T++) {
+                  var sum = 0, norm = 0;
+                  for (i = 0; i < SIZE - T; i++) {
+                    sum += buf[i] * buf[i + T];
+                    norm += buf[i] * buf[i];
+                  }
+                  r[T] = sum / (norm + 1e-9);
+                }
+                var bestT = -1, bestV = 0;
+                for (T = MIN_P; T <= MAX_P; T++) {
+                  if (r[T] > bestV) { bestV = r[T]; bestT = T; }
+                }
+                if (bestT < 0 || bestV < 0.25) return null;
+                /* Anti-octave : on retient le premier pic de corrélation
+                 * suffisamment fort (la fondamentale est le pic le plus
+                 * court ; les multiples donnent des octaves trop graves). */
+                var thresh = bestV * 0.85;
+                var chosen = bestT;
+                for (T = MIN_P; T <= MAX_P; T++) {
+                  var prevV = T > MIN_P ? r[T - 1] : 0;
+                  var nextV = T < MAX_P ? r[T + 1] : 0;
+                  if (r[T] > thresh && r[T] >= prevV && r[T] >= nextV) { chosen = T; break; }
+                }
+                /* Interpolation parabolique du pic : sous 300 Hz, un frame
+                 * d'écart à 44,1 kHz vaut jusqu'à 30 cents ; la parabole
+                 * ramène l'erreur à quelques cents par note. */
+                var y0 = chosen > MIN_P ? r[chosen - 1] : r[chosen];
+                var y2 = chosen < MAX_P ? r[chosen + 1] : r[chosen];
+                var denom = y0 - 2 * r[chosen] + y2;
+                var shift = denom !== 0 ? 0.5 * (y0 - y2) / denom : 0;
+                if (shift < -0.5) shift = -0.5;
+                if (shift > 0.5) shift = 0.5;
+                return { f: sampleRate / (chosen + shift), q: bestV };
+              }
+
+          ''', include_end=False)
+
+          # ---------------------------------------------------------------- helpers
+          rep("    function startIdentify() {", '''    /* Recherche partagée (arrêt manuel et vérification en direct) :
+               * renvoie les candidats triés par score brut décroissant,
+               * l'objet tune attaché à chacun. */
+              function runContourSearch(midis) {
+                var q = [];
+                for (var i = 1; i < midis.length && q.length < MAX_QUERY_IV; i++) {
+                  q.push(midis[i] - midis[i - 1]);
+                }
+                var corpus = buildContours();
+                var bestByTune = {};
+                for (var k = 0; k < corpus.length; k++) {
+                  var s = contourMatch(q, corpus[k].iv);
+                  if (s <= 0) continue;
+                  var tid = corpus[k].tune.id || corpus[k].tune.name;
+                  if (bestByTune[tid] === undefined || s > bestByTune[tid]) bestByTune[tid] = s;
+                }
+                var results = [];
+                Object.keys(bestByTune).forEach(function (tid) { results.push({ id: tid, score: bestByTune[tid] }); });
+                var byId = {};
+                corpus.forEach(function (e) { byId[e.tune.id || e.tune.name] = e.tune; });
+                results.sort(function (a, b) { return b.score - a.score; });
+                results.forEach(function (r) { r.t = byId[r.id]; });
+                return results;
+              }
+
+              /* Pourcentage de précision calibré : 0 % équivaut au score
+               * d'un contour aléatoire (0,5 brut), 100 % à la coïncidence
+               * exacte de tous les intervalles. Le score brut affichait des
+               * « 55 % » trompeurs sur des bruits quelconques. */
+              function precisionPct(score) {
+                var c = (score - 0.5) / 0.5;
+                if (c < 0) c = 0;
+                if (c > 1) c = 1;
+                return Math.round(c * 100);
+              }
+
+              function startIdentify() {''')
+
+          # ---------------------------------------------------------------- carte d'ecoute
+          rep(
+              "        var tips = document.createElement('div');\n        tips.className = 'listen-sub';",
+              """        var liveBest = document.createElement('div');
+                  liveBest.className = 'listen-sub';
+                  liveBest.id = 'listenBest';
+                  var tips = document.createElement('div');
+                  tips.className = 'listen-sub';"""
+          )
+          rep(
+              "        card.appendChild(head); card.appendChild(cnt); card.appendChild(notesDiv);",
+              "        card.appendChild(head); card.appendChild(cnt); card.appendChild(notesDiv);\n        card.appendChild(liveBest);"
+          )
+          rep(
+              "        list.appendChild(card);\n",
+              """        list.appendChild(card);
+                  /* Prépare la bibliothèque de contours dès le début de
+                   * l'écoute : la vérification en direct n'attendra pas. */
+                  setTimeout(function () { try { buildContours(); } catch (e2) {} }, 60);
+          """
+          )
+
+          # ---------------------------------------------------------------- frame + auto-check
+          frame_start = t.index('        function frame() {')
+          _end_anchor = chr(10) + '        micState.raf = requestAnimationFrame(frame);' + chr(10)
+          frame_end = t.index(_end_anchor, frame_start) + len(_end_anchor)
+          new_frame = '''        /* Vérification en direct : dès que la bibliothèque est
+                   * prête, chaque note confirmée déclenche (au plus toutes
+                   * les 1,5 s) une recherche ; un candidat nettement détaché
+                   * du suivant deux fois de suite arrête l'écoute et affiche
+                   * les résultats sans intervention manuelle. */
+                  var lastAutoCheck = 0;
+                  function liveAutoCheck() {
+                    var now = Date.now();
+                    if (now - lastAutoCheck < 1500) return;
+                    if (micState.midis.length < 8 || !CONTOUR_CACHE || !CONTOUR_CACHE.length) return;
+                    lastAutoCheck = now;
+                    var res = runContourSearch(micState.midis);
+                    if (!res.length || !res[0].t) { micState.liveStreak = 0; return; }
+                    var best = res[0];
+                    var second = res.length > 1 ? res[1].score : 0;
+                    var bestEl = $('listenBest');
+                    if (bestEl) bestEl.textContent = T('Meilleur candidat : ') + best.t.name + ' — ' + precisionPct(best.score) + T(' %');
+                    if (best.score >= 0.80 && best.score - second >= 0.05) {
+                      micState.liveStreak += 1;
+                      if (micState.liveStreak >= 2) { stopIdentify(true); return; }
+                    } else {
+                      micState.liveStreak = 0;
+                    }
+                  }
+                  function frame() {
+                    analyser.getFloatTimeDomainData(buf);
+                    var ac = autoCorrelate(buf, actx.sampleRate);
+                    if (ac && ac.f > 0 && ac.q >= 0.5) {
+                      /* Chaque frame fiable (note réellement tenue par
+                       * l'instrument) alimente la médiane glissante ; les
+                       * frames peu périodiques (bruit, transitoire
+                       * d'attaque, souffle) sont écartées comme un silence :
+                       * la détection se concentre sur les notes. */
+                      micState.recent.push(69 + 12 * Math.log(ac.f / 440) / Math.LN2);
+                      if (micState.recent.length > 3) micState.recent.shift();
+                      var med = medianOf(micState.recent);
+                      var midi = Math.round(med);
+                      if (micState.hold === null) {
+                        micState.hold = midi; micState.holdCount = 1; micState.notePitches = [med];
+                        micState.cand = null; micState.candCount = 0;
+                      } else if (midi === micState.hold) {
+                        micState.holdCount++;
+                        micState.notePitches.push(med);
+                        micState.candCount = 0;
+                      } else {
+                        /* Candidat à la bascule : deux frames ET un écart
+                         * franc de 0,55 demi-ton. La note confirmée est
+                         * arrondie sur la médiane de toutes ses hauteurs
+                         * stables, pas sur un instantané : chaque note est
+                         * mesurée sur toute sa durée. */
+                        if (midi === micState.cand) micState.candCount++;
+                        else { micState.cand = midi; micState.candCount = 1; }
+                        if (micState.candCount >= 2 && Math.abs(med - micState.hold) >= 0.55) {
+                          var confirmed = Math.round(medianOf(micState.notePitches));
+                          var last = micState.midis.length ? micState.midis[micState.midis.length - 1] : null;
+                          if (last !== confirmed) micState.midis.push(confirmed);
+                          micState.hold = midi; micState.holdCount = 1; micState.notePitches = [med];
+                          micState.cand = null; micState.candCount = 0;
+                          liveAutoCheck();
+                        }
+                      }
+                      cnt.textContent = micState.midis.length + T(' note(s) perçue(s). Recherche automatique en direct…');
+                      notesDiv.textContent = micState.midis.slice(-12).map(noteName).join('  ');
+                    } else if (micState.recent.length) {
+                      /* Silence : la mémoire glissante se vide pour ne pas
+                       * mélanger deux notes séparées par un repos. */
+                      micState.recent.shift();
+                    }
+                    if (micState.stream || micState.ctx) micState.raf = requestAnimationFrame(frame);
+                  }
+                  micState.raf = requestAnimationFrame(frame);
+          '''
+          t = t[:frame_start] + new_frame + t[frame_end:]
+
+          # ---------------------------------------------------------------- stopIdentify
+          cut('    function stopIdentify() {', '    function toggleIdentify() {', '''    function stopIdentify(auto) {
+                if (micState.raf) cancelAnimationFrame(micState.raf);
+                micState.raf = 0;
+                /* Dernière note en cours à l'arrêt : confirmée dès deux
+                 * frames, au même titre qu'une bascule (symétrie avec le
+                 * suivi temps réel), sur la médiane de ses hauteurs. */
+                if (micState.hold !== null && micState.holdCount >= 2) {
+                  var confirmed = Math.round(medianOf(micState.notePitches.length ? micState.notePitches : [micState.hold]));
+                  var last = micState.midis.length ? micState.midis[micState.midis.length - 1] : null;
+                  if (last !== confirmed) micState.midis.push(confirmed);
+                }
+                if (micState.stream) { micState.stream.getTracks().forEach(function (tr) { tr.stop(); }); micState.stream = null; }
+                if (micState.ctx) { micState.ctx.close(); micState.ctx = null; }
+                $('micBtnLabel').textContent = T('Identifier un tune');
+                $('micBtn').classList.remove('listening');
+
+                var midis = micState.midis;
+                if (midis.length < 4) {
+                  setStatus('Pas assez de notes perçues. Veuillez rejouer quelques mesures plus près du micro.');
+                  return;
+                }
+                setStatus(auto
+                  ? 'Reconnaissance automatique : tune identifié avec une confiance suffisante.'
+                  : 'Analyse du contour joué et recherche dans la bibliothèque...');
+                /* Laisse le navigateur afficher le message avant le calcul. */
+                setTimeout(function () {
+                  var results = runContourSearch(midis);
+                  var top = results.slice(0, 3).filter(function (r) { return r.score >= 0.55; });
+                  var list = $('tuneList');
+                  removeMySubTabs();
+                  list.innerHTML = '';
+                  if (!top.length) {
+                    setStatus('Aucun tune reconnu avec certitude. Veuillez essayer en jouant le début du tune, dans une pièce calme.');
+                    return;
+                  }
+                  setStatus(auto
+                    ? 'Reconnaissance automatique : tune identifié avec une confiance suffisante. Fonction bêta : cliquez sur un tune pour ouvrir sa partition.'
+                    : 'Fonction bêta : tunes les plus proches de ce qui a été joué au micro. Cliquez sur un tune pour ouvrir sa partition.');
+                  top.forEach(function (r, idx) {
+                    var li = document.createElement('li');
+                    li.className = 'tune-card';
+                    var left = document.createElement('div');
+                    var name = document.createElement('div');
+                    name.className = 'tune-name';
+                    name.textContent = (idx + 1) + T('. ') + r.t.name;
+                    var type = document.createElement('div');
+                    type.className = 'tune-type';
+                    type.textContent = r.t.type || '';
+                    var src = document.createElement('div');
+                    src.className = 'tune-src';
+                    src.textContent = r.t.source || '';
+                    var score = document.createElement('div');
+                    score.className = 'match-score';
+                    score.textContent = T('Correspondance : ') + precisionPct(r.score) + T(' %');
+                    left.appendChild(name); left.appendChild(type); left.appendChild(src); left.appendChild(score);
+                    li.appendChild(left);
+                    /* Toute la carte est cliquable : pas de bouton « Ouvrir ». */
+                    li.addEventListener('click', function () { stopAll(); openTune(r.t); });
+                    list.appendChild(li);
+                  });
+                }, 30);
+              }
+
+          ''', include_end=False)
+
+          p.write_text(t, encoding='utf-8')
+          print('patch mic applique:', orig_len, '->', len(t), 'caracteres')
 
           PYEOF
       - name: Generate banner
@@ -354,5 +707,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64 banniere-1024x500.png
-          git commit -m "Correctif i18n bouton Poursuivre/Terminer + sw v11 (26 oct, v6)" || echo "nothing to commit"
+          git commit -m "Reconnaissance audio amelioree (notes, auto-stop, precision) + sw v12 (27 oct, v7)" || echo "nothing to commit"
           git push
