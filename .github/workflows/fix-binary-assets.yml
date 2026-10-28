@@ -17,7 +17,7 @@ jobs:
         run: |
           git show 09721632d891d5aef14a54494d324d887aff03bf:icons/icon-512.png > orig-512.png
           git show 09721632d891d5aef14a54494d324d887aff03bf:index.html > index-orig.html
-          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v12/' > sw.js
+          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v13/' > sw.js
           python3 - <<'PYEOF'
           import zlib, struct, math
 
@@ -526,6 +526,49 @@ jobs:
           print('patch mic applique:', orig_len, '->', len(t), 'caracteres')
 
           PYEOF
+      - name: Patch manifest link (PWABuilder)
+        run: |
+          python3 - <<'PYEOF'
+          import re, pathlib
+          p = pathlib.Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          m = re.search(r'<link rel="manifest" href="(data:application/manifest\+json;base64,[A-Za-z0-9+/=]+)">', s)
+          assert m, 'data-URI du manifeste introuvable'
+          datauri = m.group(1)
+
+          old_link = '<link rel="manifest" href="' + datauri + '">'
+          assert s.count(old_link) == 1, 'lien manifeste statique introuvable'
+          s = s.replace(old_link, '<link rel="manifest" href="manifest.webmanifest">')
+
+          old_c = """/* Fichiers d'empaquetage (APK / PWA en ligne), utilisés uniquement lorsque
+                 l'application est servie via HTTP(S). Ouvert en local, le fichier reste
+                 autonome et ces lignes restent sans effet. */"""
+          new_c = """/* Manifeste externe par defaut (PWABuilder, PWA en ligne). Ouvert en local
+                 (hors HTTP(S)), le lien bascule vers le manifeste embarque et le fichier
+                 reste autonome. */"""
+          assert s.count(old_c) == 1, 'commentaire empaquetage introuvable'
+          s = s.replace(old_c, new_c)
+
+          old_js = """if (/^https?:$/.test(location.protocol)) {
+                document.querySelector('link[rel="manifest"]').setAttribute('href', 'manifest.webmanifest');
+                if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+              }"""
+          new_js = """if (/^https?:$/.test(location.protocol)) {
+                if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+              } else {
+                document.querySelector('link[rel="manifest"]').setAttribute('href', 'DATAURI_PLACEHOLDER');
+              }"""
+          assert s.count(old_js) == 1, 'bloc JS du manifeste introuvable'
+          s = s.replace(old_js, new_js)
+          s = s.replace('DATAURI_PLACEHOLDER', datauri)
+
+          p.write_text(s, encoding='utf-8')
+          assert '<link rel="manifest" href="manifest.webmanifest">' in s
+          assert s.count('data:application/manifest+json;base64,') == 1
+          assert 'DATAURI_PLACEHOLDER' not in s
+          print('patch manifest OK, octets:', len(s))
+          PYEOF
       - name: Generate banner
         run: |
           python3 - <<'PYEOF'
@@ -707,5 +750,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64 banniere-1024x500.png
-          git commit -m "Reconnaissance audio amelioree (notes, auto-stop, precision) + sw v12 (27 oct, v7)" || echo "nothing to commit"
+          git commit -m "Lien manifeste statique manifest.webmanifest pour PWABuilder + sw v13 (28 oct, v8)" || echo "nothing to commit"
           git push
