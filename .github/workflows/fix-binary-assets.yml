@@ -17,7 +17,7 @@ jobs:
         run: |
           git show 09721632d891d5aef14a54494d324d887aff03bf:icons/icon-512.png > orig-512.png
           git show 09721632d891d5aef14a54494d324d887aff03bf:index.html > index-orig.html
-          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v13/' > sw.js
+          git show 09721632d891d5aef14a54494d324d887aff03bf:sw.js | sed 's/irish-tunes-tutor-v9/irish-tunes-tutor-v14/' > sw.js
           python3 - <<'PYEOF'
           import zlib, struct, math
 
@@ -569,6 +569,50 @@ jobs:
           assert 'DATAURI_PLACEHOLDER' not in s
           print('patch manifest OK, octets:', len(s))
           PYEOF
+      - name: Patch revision card i18n (a reviser aujourd'hui, Proposer un autre)
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib
+          p = pathlib.Path('index.html')
+          t = p.read_text(encoding='utf-8')
+
+          old = "list.appendChild(featuredCard(feat, '\u00c0 r\u00e9viser aujourd\\u2019hui', 'Proposer un autre', renderRevision, { clickToOpen: true }));"
+          new = "list.appendChild(featuredCard(feat, T('\u00c0 r\u00e9viser aujourd\\u2019hui'), T('Proposer un autre'), renderRevision, { clickToOpen: true }));"
+          assert t.count(old) == 1, 'carte revision introuvable: %d' % t.count(old)
+          t = t.replace(old, new)
+
+          subs = [
+           ("'Un autre au hasard': 'Another one at random',",
+            "'Un autre au hasard': 'Another one at random',\n        '\u00c0 r\u00e9viser aujourd\u2019hui': 'To review today',\n        'Proposer un autre': 'Suggest another',"),
+           ("'Un autre au hasard': 'Noch eine zuf\u00e4llige',",
+            "'Un autre au hasard': 'Noch eine zuf\u00e4llige',\n        '\u00c0 r\u00e9viser aujourd\u2019hui': 'Heute wiederholen',\n        'Proposer un autre': 'Einen anderen vorschlagen',"),
+           ('"Un autre au hasard": "Un\'altra a caso",',
+            '"Un autre au hasard": "Un\'altra a caso",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "Da ripassare oggi",\n        "Proposer un autre": "Proponi un altro",'),
+           ('"Un autre au hasard": "Otra al azar",',
+            '"Un autre au hasard": "Otra al azar",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "Para repasar hoy",\n        "Proposer un autre": "Proponer otro",'),
+           ('"Un autre au hasard": "Een andere op goed geluk",',
+            '"Un autre au hasard": "Een andere op goed geluk",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "Vandaag herhalen",\n        "Proposer un autre": "Een andere voorstellen",'),
+           ('"Un autre au hasard": "En annen p\u00e5 slump",',
+            '"Un autre au hasard": "En annen p\u00e5 slump",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "Til repetisjon i dag",\n        "Proposer un autre": "Foresl\u00e5 en annen",'),
+           ('"Un autre au hasard": "Toinen sattumanvaraisesti",',
+            '"Un autre au hasard": "Toinen sattumanvaraisesti",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "T\u00e4n\u00e4\u00e4n kerrattava",\n        "Proposer un autre": "Ehdota toista",'),
+           ('"Un autre au hasard": "\u039c\u03b9\u03b1 \u03ac\u03bb\u03bb\u03b7 \u03c4\u03c5\u03c7\u03b1\u03af\u03b1",',
+            '"Un autre au hasard": "\u039c\u03b9\u03b1 \u03ac\u03bb\u03bb\u03b7 \u03c4\u03c5\u03c7\u03b1\u03af\u03b1",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "\u0393\u03b9\u03b1 \u03b5\u03c0\u03b1\u03bd\u03ac\u03bb\u03b7\u03c8\u03b7 \u03c3\u03ae\u03bc\u03b5\u03c1\u03b1",\n        "Proposer un autre": "\u03a0\u03c1\u03bf\u03c4\u03b5\u03af\u03bd\u03b5\u03c4\u03b5 \u03ac\u03bb\u03bb\u03bf",'),
+           ('"Un autre au hasard": "M\u00e9g egy, v\u00e9letlenszer\u0171en",',
+            '"Un autre au hasard": "M\u00e9g egy, v\u00e9letlenszer\u0171en",\n        "\u00c0 r\u00e9viser aujourd\u2019hui": "Ma ism\u00e9telend\u0151",\n        "Proposer un autre": "M\u00e1sik javaslat",'),
+          ]
+          for a, b in subs:
+              assert t.count(a) == 1, 'ancre introuvable: ' + a[:40]
+              t = t.replace(a, b)
+
+          assert t.count("'Proposer un autre'") == 3, 'clefs simples Proposer un autre: %d' % t.count("'Proposer un autre'")
+          assert t.count('"Proposer un autre"') == 7, 'clefs doubles Proposer un autre: %d' % t.count('"Proposer un autre"')
+          assert t.count("'\u00c0 r\u00e9viser aujourd\u2019hui'") == 2, 'clefs simples A reviser: %d' % t.count("'\u00c0 r\u00e9viser aujourd\u2019hui'")
+          assert t.count('"\u00c0 r\u00e9viser aujourd\u2019hui"') == 7, 'clefs doubles A reviser: %d' % t.count('"\u00c0 r\u00e9viser aujourd\u2019hui"')
+          p.write_text(t, encoding='utf-8')
+          print('patch carte revision i18n OK, caracteres:', len(t))
+
+          PYEOF
       - name: Generate banner
         run: |
           python3 - <<'PYEOF'
@@ -750,5 +794,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f --ignore-unmatch tmp-encoding-test.bin
           git add index.html sw.js icons/icon-192.png icons/icon-512.png icons/icon-512-maskable.png assets-b64/icon-192.png.b64 assets-b64/icon-512.png.b64 assets-b64/icon-512-maskable.png.b64 banniere-1024x500.png
-          git commit -m "Lien manifeste statique manifest.webmanifest pour PWABuilder + sw v13 (28 oct, v8)" || echo "nothing to commit"
+          git commit -m "Correction i18n carte revision (a reviser aujourd hui, Proposer un autre) + sw v14 (29 oct, v9)" || echo "nothing to commit"
           git push
