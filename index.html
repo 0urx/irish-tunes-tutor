@@ -1258,6 +1258,8 @@
         'Aucun tune dans cette catégorie.': 'No tune in this category.',
         'Tune proposé': 'Featured tune',
         'Un autre au hasard': 'Another one at random',
+        'À réviser aujourd’hui': 'To review today',
+        'Proposer un autre': 'Suggest another',
         'Version unique': 'Single version',
         ' Appris': ' Learned',
         ' à ': ' at ',
@@ -1474,6 +1476,8 @@
         'Aucun tune dans cette catégorie.': 'Keine Melodie in dieser Kategorie.',
         'Tune proposé': 'Vorgeschlagene Melodie',
         'Un autre au hasard': 'Noch eine zufällige',
+        'À réviser aujourd’hui': 'Heute wiederholen',
+        'Proposer un autre': 'Einen anderen vorschlagen',
         'Version unique': 'Einzige Version',
         ' Appris': ' Gelernt',
         ' à ': ' bei ',
@@ -1688,6 +1692,8 @@
         "Aucun tune dans cette catégorie.": "Nessuna melodia in questa categoria.",
         "Tune proposé": "Melodia proposta",
         "Un autre au hasard": "Un'altra a caso",
+        "À réviser aujourd’hui": "Da ripassare oggi",
+        "Proposer un autre": "Proponi un altro",
         "Version unique": "Versione unica",
         " Appris": " Imparata",
         " à ": " a ",
@@ -1901,6 +1907,8 @@
         "Aucun tune dans cette catégorie.": "Ninguna melodía en esta categoría.",
         "Tune proposé": "Melodía propuesta",
         "Un autre au hasard": "Otra al azar",
+        "À réviser aujourd’hui": "Para repasar hoy",
+        "Proposer un autre": "Proponer otro",
         "Version unique": "Versión única",
         " Appris": " Aprendida",
         " à ": " a ",
@@ -2114,6 +2122,8 @@
         "Aucun tune dans cette catégorie.": "Geen melodie in deze categorie.",
         "Tune proposé": "Voorgestelde melodie",
         "Un autre au hasard": "Een andere op goed geluk",
+        "À réviser aujourd’hui": "Vandaag herhalen",
+        "Proposer un autre": "Een andere voorstellen",
         "Version unique": "Enige versie",
         " Appris": " Geleerd",
         " à ": " op ",
@@ -2327,6 +2337,8 @@
         "Aucun tune dans cette catégorie.": "Ingen melodi i denne kategorien.",
         "Tune proposé": "Foreslått melodi",
         "Un autre au hasard": "En annen på slump",
+        "À réviser aujourd’hui": "Til repetisjon i dag",
+        "Proposer un autre": "Foreslå en annen",
         "Version unique": "Eneste versjon",
         " Appris": " Lært",
         " à ": " ved ",
@@ -2540,6 +2552,8 @@
         "Aucun tune dans cette catégorie.": "Tässä kategoriassa ei ole melodioita.",
         "Tune proposé": "Ehdotettu melodia",
         "Un autre au hasard": "Toinen sattumanvaraisesti",
+        "À réviser aujourd’hui": "Tänään kerrattava",
+        "Proposer un autre": "Ehdota toista",
         "Version unique": "Ainoa versio",
         " Appris": " Opittu",
         " à ": " tempo ",
@@ -2753,6 +2767,8 @@
         "Aucun tune dans cette catégorie.": "Καμία μελωδία σε αυτή την κατηγορία.",
         "Tune proposé": "Προτεινόμενη μελωδία",
         "Un autre au hasard": "Μια άλλη τυχαία",
+        "À réviser aujourd’hui": "Για επανάληψη σήμερα",
+        "Proposer un autre": "Προτείνετε άλλο",
         "Version unique": "Μοναδική έκδοση",
         " Appris": " Μαθημένη",
         " à ": " στο ",
@@ -2965,6 +2981,8 @@
         "Aucun tune dans cette catégorie.": "Nincs melódia ebben a kategóriában.",
         "Tune proposé": "Javasolt melódia",
         "Un autre au hasard": "Még egy, véletlenszerűen",
+        "À réviser aujourd’hui": "Ma ismételendő",
+        "Proposer un autre": "Másik javaslat",
         "Version unique": "Egyetlen verzió",
         " Appris": " Megtanult",
         " à ": " ekkor: ",
@@ -6218,7 +6236,7 @@
       }
       setStatus('Tunes appris : ' + rev.length + '. Voici une proposition de révision.');
       var feat = rev[randomInt(rev.length)];
-      list.appendChild(featuredCard(feat, 'À réviser aujourd\u2019hui', 'Proposer un autre', renderRevision, { clickToOpen: true }));
+      list.appendChild(featuredCard(feat, T('À réviser aujourd\u2019hui'), T('Proposer un autre'), renderRevision, { clickToOpen: true }));
       var others = rev.filter(function (t) { return t.id !== feat.id; });
       if (others.length) {
         var head = document.createElement('li');
